@@ -1,29 +1,30 @@
 <script setup>
-import { computed, ref } from "vue";
-import { itemsData } from "@/data/items";
+import { computed, ref, onMounted } from "vue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Trash2, Plus, Minus } from "lucide-vue-next";
 import { useOrders } from "@/composables/useOrders";
+import { db } from "@/lib/db";
 
 const activeTab = ref("breakfast");
+const items = ref([]);
 const cart = ref([]);
 const orderDiscount = ref(0);
 const { addOrder } = useOrders();
 
 const breakfastItems = computed(() =>
-  itemsData.filter((item) => item.category === "صبحانه")
+  items.value.filter((item) => item.category === "صبحانه")
 );
 
 const coffeeDrinkItems = computed(() =>
-  itemsData.filter(
+  items.value.filter(
     (item) => item.category === "نوشیدنی" && item.coffeeBased === true
   )
 );
 
 const nonCoffeeDrinkItems = computed(() =>
-  itemsData.filter(
+  items.value.filter(
     (item) => item.category === "نوشیدنی" && item.coffeeBased === false
   )
 );
@@ -106,14 +107,25 @@ const finalTotalPrice = computed(() => {
   return Math.max(0, totalPrice.value - discount);
 });
 
+const loadItems = async () => {
+  const stored = await db.getItems();
+  items.value = stored || [];
+};
+
 const submitOrder = () => {
   if (cart.value.length === 0) return;
 
-  addOrder([...cart.value], finalTotalPrice.value, Number(orderDiscount.value) || 0);
+  addOrder(
+    [...cart.value],
+    finalTotalPrice.value,
+    Number(orderDiscount.value) || 0
+  );
   cart.value = [];
   orderDiscount.value = 0;
   alert("سفارش با موفقیت ثبت شد!");
 };
+
+onMounted(loadItems);
 </script>
 
 <template>

@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useOrders } from "@/composables/useOrders";
-import { itemsData } from "@/data/items";
+import { db } from "@/lib/db";
 import { Pencil, Trash2, Plus, Minus, Search } from "lucide-vue-next";
 
 const { orders, deleteOrder, updateOrder } = useOrders();
@@ -60,9 +60,9 @@ const openEditModal = (order) => {
   orderDiscount.value = order.discount ?? 0;
   // Convert order items to cart format
   editCart.value = order.items.map((item) => {
-    const fullItem = itemsData.find((i) => i.id === item.id);
+    const fullItem = order.items.find((i) => i.id === item.id);
     return {
-      ...fullItem,
+      ...fullItem, // contains id, name, price
       cartId: Date.now() + Math.random(),
       quantity: item.quantity,
     };
@@ -143,9 +143,9 @@ const saveOrder = () => {
 };
 
 const availableItems = computed(() => {
-  if (!searchQuery.value) return itemsData;
+  if (!searchQuery.value) return [];
   const query = searchQuery.value.toLowerCase();
-  return itemsData.filter(
+  return editingOrder.value?.items.filter(
     (item) =>
       item.name.toLowerCase().includes(query) ||
       item.category.toLowerCase().includes(query)

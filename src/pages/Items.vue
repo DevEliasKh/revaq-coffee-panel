@@ -1,11 +1,18 @@
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
-import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Switch } from '@/components/ui/switch'
-import { itemsData } from '@/data/items'
+import { ref, reactive, computed, watch, onMounted } from "vue";
+import {
+  Table,
+  TableHeader,
+  TableBody,
+  TableRow,
+  TableHead,
+  TableCell,
+} from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { db } from "@/lib/db";
 import {
   Plus,
   Download,
@@ -13,125 +20,127 @@ import {
   Flame,
   Snowflake,
   Pencil,
-  Trash2
-} from 'lucide-vue-next'
+  Trash2,
+} from "lucide-vue-next";
 
-const items = ref(itemsData)
-const searchQuery = ref('')
-const isDrawerOpen = ref(false)
-const isEditing = ref(false)
-const editingId = ref(null)
+const items = ref([]);
+const searchQuery = ref("");
+const isDrawerOpen = ref(false);
+const isEditing = ref(false);
+const editingId = ref(null);
 
 const emptyItem = {
-  name: '',
-  price: '',
-  temperature: 'داغ',
-  category: 'نوشیدنی',
+  name: "",
+  price: "",
+  temperature: "داغ",
+  category: "نوشیدنی",
   coffeeBased: true,
-  enabled: true
-}
+  enabled: true,
+};
 
-const newItem = reactive({ ...emptyItem })
+const newItem = reactive({ ...emptyItem });
 
 // Watch category changes - if breakfast, set temperature to hot
 watch(
   () => newItem.category,
   (newCategory) => {
-    if (newCategory === 'صبحانه') {
-      newItem.temperature = 'داغ'
+    if (newCategory === "صبحانه") {
+      newItem.temperature = "داغ";
     }
   }
-)
+);
 
 const formatPrice = (price) => {
-  return new Intl.NumberFormat('fa-IR').format(price)
-}
+  return new Intl.NumberFormat("fa-IR").format(price);
+};
 
 const filteredItems = computed(() => {
-  if (!searchQuery.value) return items.value
-  const query = searchQuery.value.toLowerCase()
-  return items.value.filter((item) =>
-    item.name.toLowerCase().includes(query) ||
-    item.category.toLowerCase().includes(query) ||
-    item.temperature.toLowerCase().includes(query)
-  )
-})
+  if (!searchQuery.value) return items.value;
+  const query = searchQuery.value.toLowerCase();
+  return items.value.filter(
+    (item) =>
+      item.name.toLowerCase().includes(query) ||
+      item.category.toLowerCase().includes(query) ||
+      item.temperature.toLowerCase().includes(query)
+  );
+});
 
 const resetForm = () => {
-  Object.assign(newItem, { ...emptyItem })
-}
+  Object.assign(newItem, { ...emptyItem });
+};
+
+const loadItems = async () => {
+  const stored = await db.getItems();
+  items.value = stored || [];
+};
 
 const openCreateDrawer = () => {
-  isEditing.value = false
-  editingId.value = null
-  resetForm()
-  isDrawerOpen.value = true
-}
+  isEditing.value = false;
+  editingId.value = null;
+  resetForm();
+  isDrawerOpen.value = true;
+};
 
 const startEdit = (item) => {
-  isEditing.value = true
-  editingId.value = item.id
+  isEditing.value = true;
+  editingId.value = item.id;
   Object.assign(newItem, {
     name: item.name,
     price: item.price,
     temperature: item.temperature,
     category: item.category,
     coffeeBased: item.coffeeBased,
-    enabled: item.enabled
-  })
-  isDrawerOpen.value = true
-}
+    enabled: item.enabled,
+  });
+  isDrawerOpen.value = true;
+};
 
 const deleteItem = (id) => {
-  const item = items.value.find((i) => i.id === id)
-  const label = item?.name ? `\"${item.name}\"` : ''
-  const confirmed = window.confirm(`آیا از حذف ${label} مطمئن هستید؟`)
-  if (!confirmed) return
+  const item = items.value.find((i) => i.id === id);
+  const label = item?.name ? `\"${item.name}\"` : "";
+  const confirmed = window.confirm(`آیا از حذف ${label} مطمئن هستید؟`);
+  if (!confirmed) return;
 
-  items.value = items.value.filter((item) => item.id !== id)
-}
+  db.items.delete(id);
+  items.value = items.value.filter((item) => item.id !== id);
+};
 
-const submitItem = () => {
-  if (!newItem.name || !newItem.price) return
+const submitItem = async () => {
+  if (!newItem.name || !newItem.price) return;
 
   if (isEditing.value && editingId.value !== null) {
-    items.value = items.value.map((item) =>
-      item.id === editingId.value
-        ? {
-            ...item,
-            name: newItem.name,
-            price: Number(newItem.price),
-            temperature: newItem.temperature,
-            category: newItem.category,
-            coffeeBased: newItem.coffeeBased,
-            enabled: newItem.enabled
-          }
-        : item
-    )
-  } else {
-    const nextId = items.value.length
-      ? Math.max(...items.value.map((i) => i.id)) + 1
-      : 1
+    const updated = await db.updateItem(editingId.value, {
+      name: newItem.name,
+      price: Number(newItem.price),
+      temperature: newItem.temperature,
+      category: newItem.category,
+      coffeeBased: newItem.coffeeBased,
+      enabled: newItem.enabled,
+    });
 
-    items.value = [
-      {
-        id: nextId,
-        name: newItem.name,
-        price: Number(newItem.price),
-        temperature: newItem.temperature,
-        category: newItem.category,
-        coffeeBased: newItem.coffeeBased,
-        enabled: newItem.enabled
-      },
-      ...items.value
-    ]
+    items.value = items.value.map((item) =>
+      item.id === editingId.value ? updated : item
+    );
+  } else {
+    const created = await db.addItem({
+      name: newItem.name,
+      price: Number(newItem.price),
+      temperature: newItem.temperature,
+      category: newItem.category,
+      coffeeBased: newItem.coffeeBased,
+      enabled: newItem.enabled,
+    });
+
+    items.value = [created, ...items.value];
   }
 
-  isDrawerOpen.value = false
-  isEditing.value = false
-  editingId.value = null
-  resetForm()
-}
+  isDrawerOpen.value = false;
+  isEditing.value = false;
+  editingId.value = null;
+  resetForm();
+};
+
+onMounted(loadItems);
 </script>
 
 <template>
@@ -140,14 +149,18 @@ const submitItem = () => {
     <div class="border-b bg-card px-6 py-6">
       <div class="mb-4">
         <h1 class="text-3xl font-bold mb-1">آیتم‌ها</h1>
-        <p class="text-sm text-muted-foreground">مدیریت و مشاهده تمام آیتم‌های منو</p>
+        <p class="text-sm text-muted-foreground">
+          مدیریت و مشاهده تمام آیتم‌های منو
+        </p>
       </div>
-      
+
       <!-- Action Bar -->
       <div class="flex items-center justify-between gap-4 flex-wrap">
         <div class="flex items-center gap-2 flex-1 min-w-[200px]">
           <div class="relative flex-1 max-w-sm">
-            <Search class="absolute right-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground" />
+            <Search
+              class="absolute right-3 top-1/2 transform -translate-y-1/2 size-4 text-muted-foreground"
+            />
             <Input
               v-model="searchQuery"
               placeholder="جستجو در آیتم‌ها..."
@@ -155,7 +168,7 @@ const submitItem = () => {
             />
           </div>
         </div>
-        
+
         <div class="flex items-center gap-2">
           <Button variant="outline" size="default">
             <Download class="size-4 ml-2" />
@@ -198,26 +211,31 @@ const submitItem = () => {
               </TableCell>
               <TableCell>
                 <Badge :variant="item.temperature === 'داغ' ? 'hot' : 'cold'">
-                  <Flame v-if="item.temperature === 'داغ'" class="size-3 ml-1" />
+                  <Flame
+                    v-if="item.temperature === 'داغ'"
+                    class="size-3 ml-1"
+                  />
                   <Snowflake v-else class="size-3 ml-1" />
                   {{ item.temperature }}
                 </Badge>
               </TableCell>
               <TableCell>
-                <Badge :variant="item.category === 'نوشیدنی' ? 'drink' : 'breakfast'">
+                <Badge
+                  :variant="item.category === 'نوشیدنی' ? 'drink' : 'breakfast'"
+                >
                   {{ item.category }}
                 </Badge>
               </TableCell>
               <TableCell>
                 <Badge :variant="item.coffeeBased ? 'coffee' : 'nonCoffee'">
-                  {{ item.coffeeBased ? 'بر پایه قهوه' : 'بدون قهوه' }}
+                  {{ item.coffeeBased ? "بر پایه قهوه" : "بدون قهوه" }}
                 </Badge>
               </TableCell>
               <TableCell class="text-center">
                 <div class="flex items-center justify-center gap-2">
                   <Switch v-model="item.enabled" />
                   <span class="text-xs text-muted-foreground">
-                    {{ item.enabled ? 'فعال' : 'غیرفعال' }}
+                    {{ item.enabled ? "فعال" : "غیرفعال" }}
                   </span>
                 </div>
               </TableCell>
@@ -245,7 +263,7 @@ const submitItem = () => {
           </TableBody>
         </Table>
       </div>
-      
+
       <!-- Empty State -->
       <div v-if="filteredItems.length === 0" class="text-center py-12">
         <p class="text-muted-foreground">نتیجه‌ای یافت نشد</p>
@@ -256,14 +274,14 @@ const submitItem = () => {
   <!-- Create Item Drawer -->
   <teleport to="body">
     <transition name="drawer">
-      <div
-        v-if="isDrawerOpen"
-        class="fixed inset-0 z-50 flex flex-row-reverse"
-      >
+      <div v-if="isDrawerOpen" class="fixed inset-0 z-50 flex flex-row-reverse">
         <!-- Backdrop -->
         <div
           class="absolute inset-0 bg-black/40"
-          @click="isDrawerOpen = false; isEditing = false"
+          @click="
+            isDrawerOpen = false;
+            isEditing = false;
+          "
         ></div>
 
         <!-- Panel (from left side) -->
@@ -273,17 +291,24 @@ const submitItem = () => {
           <div class="flex items-center justify-between mb-4">
             <div>
               <h2 class="text-xl font-semibold">
-                {{ isEditing ? 'ویرایش آیتم' : 'افزودن آیتم جدید' }}
+                {{ isEditing ? "ویرایش آیتم" : "افزودن آیتم جدید" }}
               </h2>
               <p class="text-sm text-muted-foreground mt-1">
-                {{ isEditing ? 'ویرایش اطلاعات آیتم انتخاب‌شده.' : 'اطلاعات آیتم را وارد کنید تا به لیست اضافه شود.' }}
+                {{
+                  isEditing
+                    ? "ویرایش اطلاعات آیتم انتخاب‌شده."
+                    : "اطلاعات آیتم را وارد کنید تا به لیست اضافه شود."
+                }}
               </p>
             </div>
             <Button
               variant="ghost"
               size="icon"
               class="size-8"
-              @click="isDrawerOpen = false; isEditing = false"
+              @click="
+                isDrawerOpen = false;
+                isEditing = false;
+              "
             >
               ✕
             </Button>
@@ -371,17 +396,28 @@ const submitItem = () => {
               <div class="flex items-center gap-3">
                 <Switch v-model="newItem.enabled" />
                 <span class="text-sm text-muted-foreground">
-                  {{ newItem.enabled ? 'فعال (قابل فروش)' : 'غیرفعال (ناموجود)' }}
+                  {{
+                    newItem.enabled ? "فعال (قابل فروش)" : "غیرفعال (ناموجود)"
+                  }}
                 </span>
               </div>
             </div>
 
-            <div class="flex items-center justify-end gap-2 pt-4 border-t border-border mt-4">
-              <Button variant="outline" type="button" @click="isDrawerOpen = false; isEditing = false">
+            <div
+              class="flex items-center justify-end gap-2 pt-4 border-t border-border mt-4"
+            >
+              <Button
+                variant="outline"
+                type="button"
+                @click="
+                  isDrawerOpen = false;
+                  isEditing = false;
+                "
+              >
                 انصراف
               </Button>
               <Button type="submit">
-                {{ isEditing ? 'ذخیره تغییرات' : 'ثبت آیتم' }}
+                {{ isEditing ? "ذخیره تغییرات" : "ثبت آیتم" }}
               </Button>
             </div>
           </form>
